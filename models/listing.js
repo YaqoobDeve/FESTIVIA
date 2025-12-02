@@ -28,12 +28,7 @@ const ListingSchema = new mongoose.Schema(
     contactPhone: { type: String, trim: true },
 
     // 🟩 STORE ONLY OBJECT IDs HERE
-    reviews: [
-      {
-        type: Schema.Types.ObjectId,
-        ref: "Review",
-      },
-    ],
+ reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Review" }],
   },
   { timestamps: true }
 );

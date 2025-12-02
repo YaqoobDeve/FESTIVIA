@@ -1,11 +1,12 @@
 "use client";
 import React, { useEffect, useState } from "react";
 import Image from "next/image";
-  import { ToastContainer, toast } from 'react-toastify';
+import { ToastContainer, toast } from 'react-toastify';
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import Loader from "@/app/components/Loader";
 import { notFound } from "next/navigation";
+
 export default function VenueDetailShow() {
   const { id } = useParams();
   const router = useRouter();
@@ -13,8 +14,8 @@ export default function VenueDetailShow() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [reviewText, setReviewText] = useState("");
-const [reviewRating, setReviewRating] = useState(0);
-const [submittingReview, setSubmittingReview] = useState(false);
+  const [reviewRating, setReviewRating] = useState(0);
+  const [submittingReview, setSubmittingReview] = useState(false);
 
   
   const fallback = {
@@ -80,12 +81,6 @@ const handleReviewSubmit = async (e) => {
   try {
     // CLIENT-SIDE VALIDATION
 // require rating (explicit null check) and comment
-if (reviewRating <= 0) {
-  toast.error("Please select a rating greater than 0");
-  setSubmittingReview(false);
-  return;
-}
-
 
 if (reviewRating < 0 || reviewRating > 5) {
   toast.error("Rating must be between 0 and 5");
@@ -111,16 +106,16 @@ if (!reviewText || !reviewText.trim()) {
     const data = await res.json();
 
     if (!res.ok) {
-      alert(data.error || "Failed to submit review");
+        toast.error(data.error || "Failed to submit review");
       return;
     }
-
-    toast.success("Review submitted!");
-    setReviewRating(0);
-    setReviewText("");
-
+     toast.success("Review submitted successfully!");
+       setVenue(data);
+         setReviewRating(2.5);
+      setReviewText("");
   } catch (err) {
     console.error("Review submit error:", err);
+      toast.error("An error occurred while submitting your review");
   } finally {
     setSubmittingReview(false);
   }
@@ -311,17 +306,19 @@ if (!loading && !venue) {
   <h4 className="text-black mb-2">All Reviews</h4>
 
   <div className="flex flex-col gap-3">
-    {venue.reviews && venue.reviews.length > 0 ? (
-      venue.reviews.map((review) => (
-        <div key={review._id} className="p-3 border rounded">
-          <p className="font-semibold">⭐ {review.rating}</p>
-          <p>{review.comment}</p>
-        </div>
-      ))
-    ) : (
-      <p>No reviews yet.</p>
-    )}
-  </div>
+  {venue.reviews && venue.reviews.length > 0 ? (
+    venue.reviews.map((review) => (
+      <div key={review._id} className="p-3 border rounded">
+        <p className="font-semibold">⭐ {review.rating}</p>
+        <p>{review.comment}</p>
+        <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
+      </div>
+    ))
+  ) : (
+    <p>No reviews yet.</p>
+  )}
+</div>
+
 </div>
 
 
