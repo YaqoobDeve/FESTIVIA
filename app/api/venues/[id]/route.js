@@ -17,7 +17,7 @@ export async function GET(req, { params }) {
       return Response.json({ error: "Invalid ID" }, { status: 400 });
     }
 
-    const listing = await Listing.findById(id);
+    const listing = await Listing.findById(id).populate("reviews");
 
     if (!listing) {
       return Response.json({ error: "Venue not found" }, { status: 404 });

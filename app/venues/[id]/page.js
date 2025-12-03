@@ -7,6 +7,7 @@ import { useParams, useRouter } from "next/navigation";
 import Loader from "@/app/components/Loader";
 import { notFound } from "next/navigation";
 
+
 export default function VenueDetailShow() {
   const { id } = useParams();
   const router = useRouter();
@@ -14,10 +15,9 @@ export default function VenueDetailShow() {
   const [loading, setLoading] = useState(true);
   const [booking, setBooking] = useState(false);
   const [reviewText, setReviewText] = useState("");
-  const [reviewRating, setReviewRating] = useState(0);
+  const [reviewRating, setReviewRating] = useState(2.5); // Changed default to 2.5
   const [submittingReview, setSubmittingReview] = useState(false);
 
-  
   const fallback = {
     title: "No Title",
     description: "No description provided",
@@ -43,12 +43,17 @@ export default function VenueDetailShow() {
     async function fetchVenue() {
       try {
         const res = await fetch(`/api/venues/${id}`);
-           if (res.status === 400 || res.status === 404) {
-      notFound(); // this will show your app/not-found.js page
-      return;
-    }
+        if (res.status === 400 || res.status === 404) {
+          notFound();
+          return;
+        }
         if (!res.ok) throw new Error("Not found");
         const data = await res.json();
+        
+        // 🔍 DEBUG: Check if reviews are populated
+        console.log("Fetched venue:", data);
+        console.log("Reviews:", data.reviews);
+        
         if (mounted) setVenue(data || fallback);
       } catch (err) {
         console.warn("Fetch venue failed, using fallback", err);
@@ -74,64 +79,88 @@ export default function VenueDetailShow() {
       console.error("Delete error", err);
     }
   };
-  
-const handleReviewSubmit = async (e) => {
-  e.preventDefault();
-  setSubmittingReview(true);
-  try {
-    // CLIENT-SIDE VALIDATION
-// require rating (explicit null check) and comment
-
-if (reviewRating < 0 || reviewRating > 5) {
-  toast.error("Rating must be between 0 and 5");
-  setSubmittingReview(false);
-  return;
-}
-
-if (!reviewText || !reviewText.trim()) {
-  toast.error("Please enter a comment");
-  setSubmittingReview(false);
-  return;
-}
-
-    const res = await fetch(`/api/venues/${id}/reviews`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        rating: Number(reviewRating),
-        comment: reviewText.trim(),
-      }),
-    });
-
-    const data = await res.json();
-
-    if (!res.ok) {
-        toast.error(data.error || "Failed to submit review");
-      return;
-    }
-     toast.success("Review submitted successfully!");
-       setVenue(data);
-         setReviewRating(2.5);
-      setReviewText("");
-  } catch (err) {
-    console.error("Review submit error:", err);
-      toast.error("An error occurred while submitting your review");
-  } finally {
-    setSubmittingReview(false);
+  const DeleteReview = async (reviewid) => {
+   const res =  await fetch(`/api/venues/${id}/reviews/${reviewid}`,{method:"DELETE"})
+   setVenue((prev)=>({
+    ...prev,
+    reviews:prev.reviews.filter((r)=> r._id !== reviewid)
+   }))
   }
-};
+  
 
+  const handleReviewSubmit = async (e) => {
+    e.preventDefault();
+    setSubmittingReview(true);
+    
+    try {
+      // CLIENT-SIDE VALIDATION
+      if (reviewRating < 0 || reviewRating > 5) {
+        toast.error("Rating must be between 0 and 5");
+        setSubmittingReview(false);
+        return;
+      }
+
+      if (!reviewText || !reviewText.trim()) {
+        toast.error("Please enter a comment");
+        setSubmittingReview(false);
+        return;
+      }
+
+      console.log("Submitting review:", { rating: reviewRating, comment: reviewText.trim() });
+
+      const res = await fetch(`/api/venues/${id}/reviews`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          rating: Number(reviewRating),
+          comment: reviewText.trim(),
+        }),
+      });
+
+      // ✅ FIX: Check response status first, then parse JSON
+      if (!res.ok) {
+        let errorMessage = "Failed to submit review";
+        try {
+          const errorData = await res.json();
+          errorMessage = errorData.error || errorMessage;
+        } catch (e) {
+          console.error("Error parsing error response:", e);
+        }
+        toast.error(errorMessage);
+        return;
+      }
+
+      // Only parse JSON if response is ok
+      const data = await res.json();
+
+      toast.success("Review submitted successfully!");
+      
+      // ✅ UPDATE VENUE STATE WITH NEW DATA
+      setVenue(data);
+      
+      // Reset form
+      setReviewRating(2.5);
+      setReviewText("");
+
+    } catch (err) {
+      console.error("Review submit error:", err);
+      toast.error("An error occurred while submitting your review");
+    } finally {
+      setSubmittingReview(false);
+    }
+  };
 
   const handleBook = async () => setBooking(true);
 
   if (loading) return <Loader />;
-if (!loading && !venue) {
-  return (
-    <div className="min-h-screen flex items-center justify-center">
-      <h1 className="text-3xl font-bold">Venue Not Found</h1>
-    </div>
-  );
-}
+  
+  if (!loading && !venue) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <h1 className="text-3xl font-bold">Venue Not Found</h1>
+      </div>
+    );
+  }
 
   const gallery = [
     venue.image || fallback.image,
@@ -226,10 +255,99 @@ if (!loading && !venue) {
               <li>Peak season surcharges may apply.</li>
             </ul>
           </article>
+
+          
+
+          {/* ✅ REVIEW FORM - NOW INSIDE THE GRID */}
+          <form onSubmit={handleReviewSubmit} className="bg-white rounded-2xl p-6 shadow">
+            <h3 className="text-2xl font-bold text-rose-900 mb-4" style={{ fontFamily: "Playfair Display, serif" }}>
+              Leave a Review
+            </h3>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Rating: <span className="text-rose-600">{reviewRating.toFixed(1)} ⭐</span>
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="5"
+                  step="0.1"
+                  value={reviewRating}
+                  onChange={(e) => setReviewRating(Number(e.target.value))}
+                  className="w-full h-2 bg-rose-200 rounded-lg appearance-none cursor-pointer accent-rose-600"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>0</span>
+                  <span>2.5</span>
+                  <span>5</span>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">
+                  Your Comment
+                </label>
+                <textarea
+                  value={reviewText}
+                  onChange={(e) => setReviewText(e.target.value)}
+                  placeholder="Share your experience with this venue..."
+                  rows="4"
+                  className="w-full p-3 border border-rose-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-rose-500"
+                />
+              </div>
+
+              <button
+                type="submit"
+                disabled={submittingReview}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-rose-500 to-pink-600 text-white font-semibold shadow-lg transform active:scale-95 transition disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {submittingReview ? "Submitting..." : "Submit Review"}
+              </button>
+            </div>
+          </form>
+
+          {/* ✅ ALL REVIEWS SECTION */}
+          <div className="bg-white rounded-2xl p-6 shadow">
+            <h3 className="text-2xl font-bold text-rose-900 mb-4" style={{ fontFamily: "Playfair Display, serif" }}>
+              Reviews ({venue.reviews?.length || 0})
+            </h3>
+
+            <div className="space-y-4">
+              {venue.reviews && venue.reviews.length > 0 ? (
+                venue.reviews.map((review) => (
+                  <div key={review._id} className="p-4 border border-rose-100 rounded-lg bg-rose-50/50">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-yellow-600">
+                        ⭐ {review.rating != null ? Number(review.rating).toFixed(1) : 'N/A'}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        {review.createdAt ? new Date(review.createdAt).toLocaleDateString('en-US', { 
+                          month: 'short', 
+                          day: 'numeric', 
+                          year: 'numeric' 
+                        }) : 'Just now'}
+                      </span>
+                    </div>
+                    <p className="text-gray-700">{review.comment || 'No comment'}</p>
+                    <div>
+                      <button onClick={()=>{DeleteReview(review._id)}}>
+                        delete
+                      </button>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <p className="text-gray-500 text-center py-8">No reviews yet. Be the first to review!</p>
+              )}
+            </div>
+          </div>
         </section>
 
         {/* Right / Sticky booking card */}
         <aside className="lg:col-span-1">
+
           <div className="sticky top-28 space-y-6">
             <div className="bg-white rounded-2xl p-6 shadow-lg">
               <div className="flex items-start justify-between">
@@ -272,57 +390,9 @@ if (!loading && !venue) {
             </div>
           </div>
         </aside>
-       <form onSubmit={handleReviewSubmit} className="review text-black flex flex-col gap-3 p-4 border rounded-xl shadow">
-  <h3 className="text-xl font-semibold">Enter a Review</h3>
-
-  <label className="font-medium">Rating</label>
-  <input
-    type="range"
-    min="0"
-    max="5"
-    step="0.1"
-    value={reviewRating}
-   onChange={(e) => setReviewRating(Number(e.target.value))}
-  />
-  <p>Rating: {reviewRating}</p>
-
-  <textarea
-    value={reviewText}
-    onChange={(e) => setReviewText(e.target.value)}
-    placeholder="Enter your comment"
-    className="p-2 border rounded"
-  />
-
-  <button
-    type="submit"
-    disabled={submittingReview}
-    className="px-4 py-2 bg-rose-600 text-white rounded-lg"
-  >
-    {submittingReview ? "Submitting..." : "Submit"}
-  </button>
-</form>
-<div ><h4 className="text-black">all reviews yahan pe hain</h4>
-<div>
-  <h4 className="text-black mb-2">All Reviews</h4>
-
-  <div className="flex flex-col gap-3">
-  {venue.reviews && venue.reviews.length > 0 ? (
-    venue.reviews.map((review) => (
-      <div key={review._id} className="p-3 border rounded">
-        <p className="font-semibold">⭐ {review.rating}</p>
-        <p>{review.comment}</p>
-        <p className="text-xs text-gray-500">{new Date(review.createdAt).toLocaleDateString()}</p>
-      </div>
-    ))
-  ) : (
-    <p>No reviews yet.</p>
-  )}
-</div>
-
-</div>
 
 
-</div>
+
 
       </div>
     </main>

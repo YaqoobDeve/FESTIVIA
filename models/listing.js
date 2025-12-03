@@ -1,4 +1,5 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose from "mongoose";
+import Review from "./review";
 
 const ListingSchema = new mongoose.Schema(
   {
@@ -10,28 +11,26 @@ const ListingSchema = new mongoose.Schema(
       default:
         "https://images.pexels.com/photos/169189/pexels-photo-169189.jpeg",
     },
-    price: {
-      type: Number,
-      required: true,
-      min: [0, "Price cannot be negative. Please enter a valid amount."],
-    },
+    price: { type: Number, required: true, min: 0 },
     location: { type: String, required: true },
     country: { type: String, required: true },
-    capacity: {
-      type: Number,
-      default: 0,
-      min: [0, "Capacity cannot be negative."],
-    },
+    capacity: { type: Number, default: 0, min: 0 },
     amenities: { type: [String], default: [] },
     isAvailable: { type: Boolean, default: true },
     contactEmail: { type: String, trim: true },
     contactPhone: { type: String, trim: true },
 
-    // 🟩 STORE ONLY OBJECT IDs HERE
- reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Review" }],
+    // Store review ObjectIDs
+    reviews: [{ type: mongoose.Schema.Types.ObjectId, ref: "Review" }],
   },
-  { timestamps: true }
 );
+
+// 🟩 Correct middleware
+ListingSchema.post("findOneAndDelete", async (listing) => {
+  console.log(listing)
+  if (!listing) return;  
+  await Review.deleteMany({ _id: { $in: listing.reviews } });
+});
 
 const Listing =
   mongoose.models.Listing || mongoose.model("Listing", ListingSchema);
