@@ -1,18 +1,11 @@
 // middleware.js
 import { NextResponse } from "next/server";
-import { getToken } from "next-auth/jwt";
 
-const PUBLIC_ROUTES = [
-  "/sign-in",
-  "/sign-up",
-  "/api/auth",
-];
+export async function middleware(request) {
+  const { pathname, origin } = request.nextUrl;
+  const token = request.cookies.get("token")?.value || "";
 
-
-export async function middleware(req) {
-  const { pathname, origin } = req.nextUrl;
-
-  // 1️⃣ Ignore internals & static
+  // 1️⃣ Ignore internals & API
   if (
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api") ||
@@ -21,51 +14,42 @@ export async function middleware(req) {
     return NextResponse.next();
   }
 
-  // 2️⃣ Allow public routes
-if (PUBLIC_ROUTES.some(route => pathname.startsWith(route))) {
-  return NextResponse.next();
-}
+  // 2️⃣ Define routes
+  const publicPaths = ["/login", "/signup", "/verifyemail",];
+  const protectedPaths = ["/venues/new","/dashboard"];
 
+  const isPublicPath = publicPaths.includes(pathname);
+  const isProtectedPath = protectedPaths.some(
+    (path) => pathname === path || pathname.startsWith(`${path}/`)
+  );
 
-  // 3️⃣ SYSTEM CHECK (DB health)
+  // 3️⃣ AUTH LOGIC (FIXED)
+  // ❌ Not logged in → block protected pages
+  if (!token && isProtectedPath) {
+    return NextResponse.redirect(new URL("/login", request.url));
+  }
+
+  // ✅ Logged in → block auth pages
+  if (token && isPublicPath) {
+    return NextResponse.redirect(new URL("/", request.url));
+  }
+
+  // 4️⃣ DB HEALTH CHECK (UNCHANGED)
   try {
     const res = await fetch(`${origin}/api/db-status`, {
       cache: "no-store",
     });
 
     if (!res.ok) {
-      return NextResponse.rewrite(new URL("/maintenance", req.url));
+      return NextResponse.rewrite(new URL("/maintenance", request.url));
     }
 
     const { status } = await res.json();
     if (status !== "ok") {
-      return NextResponse.rewrite(new URL("/maintenance", req.url));
+      return NextResponse.rewrite(new URL("/maintenance", request.url));
     }
   } catch {
-    return NextResponse.rewrite(new URL("/maintenance", req.url));
-  }
-
-  // 4️⃣ AUTH CHECK
-  const token = await getToken({
-    req,
-    secret: process.env.NEXTAUTH_SECRET,
-  });
-
-  // not logged in → redirect to sign-in
-  if (!token) {
-    const loginUrl = new URL("/sign-in", req.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
-  // 5️⃣ Logged-in user trying to access auth pages
-  if (
-    token &&
-    (pathname === "/" ||
-      pathname.startsWith("/sign-in") ||
-      pathname.startsWith("/sign-up"))
-  ) {
-    return NextResponse.redirect(new URL("/home", req.url));
+    return NextResponse.rewrite(new URL("/maintenance", request.url));
   }
 
   return NextResponse.next();
